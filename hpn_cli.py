@@ -10,6 +10,17 @@ import time
 
 import requests
 
+class HelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Formatter that removes blank lines from empty subparser metavars."""
+    def _format_action(self, action):
+        result = super()._format_action(action)
+        if isinstance(action, argparse._SubParsersAction):
+            # Remove blank lines caused by empty metavar
+            lines = result.split('\n')
+            result = '\n'.join(line for line in lines if line.strip()) + '\n'
+        return result
+
+
 CONFIG_DIR = os.path.expanduser('~/.hpn')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 DEFAULT_BASE_URL = 'https://api.happenstance.ai'
@@ -238,7 +249,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog='hpn',
         description='Happenstance CLI',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=HelpFormatter,
         epilog='''Examples:
   hpn config set --api-key sk-...
   hpn search "CISOs interested in AI"
@@ -252,24 +263,29 @@ def main():
     subparsers = parser.add_subparsers(dest='command', title='Commands', metavar='')
 
     # config
-    config_parser = subparsers.add_parser('config', help='Manage API configuration')
+    config_parser = subparsers.add_parser(
+        'config', help='Manage API key',
+        description='Store your API key in ~/.hpn/config.json',
+        formatter_class=HelpFormatter,
+    )
     config_parser.set_defaults(func=lambda args: config_parser.print_help())
     config_sub = config_parser.add_subparsers(dest='config_command', title='Commands', metavar='')
 
-    config_set = config_sub.add_parser('set', help='Set config values')
-    config_set.add_argument('--api-key', dest='config_api_key', help='API key')
+    config_set = config_sub.add_parser('set', help='Save your API key')
+    config_set.add_argument('--api-key', dest='config_api_key', metavar='KEY', help='API key')
     config_set.set_defaults(func=do_config_set)
 
-    config_show = config_sub.add_parser('show', help='Show current config (key masked)')
+    config_show = config_sub.add_parser('show', help='Show saved API key (masked)')
     config_show.set_defaults(func=do_config_show)
 
     # search
     search_parser = subparsers.add_parser(
         'search', help='Search for people',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=HelpFormatter,
         epilog='''Scope:
   By default, searches your connections, friends' connections, and all
-  groups. If you specify any scope flags, only those scopes are searched.
+  groups. If you specify --groups, --friends, or --my-connections, only
+  those sources are searched.
 
 Examples:
   hpn search "CISOs interested in AI"
@@ -284,7 +300,7 @@ names available for @mentions.''',
     )
     search_parser.add_argument('query', nargs='?', help='Search query text')
     search_parser.add_argument('--groups', nargs='+',
-                               help='Group names to search (see "hpn groups" for available names)')
+                               help='Group names to search (run `hpn groups` to list)')
     search_parser.add_argument('--friends', action='store_true',
                                help="Search friends' connections")
     search_parser.add_argument('--my-connections', action='store_true',
@@ -293,48 +309,64 @@ names available for @mentions.''',
     search_parser.set_defaults(func=lambda args: do_search(args) if args.query else search_parser.print_help())
     search_sub = search_parser.add_subparsers(dest='search_command', title='Commands')
 
-    search_get = search_sub.add_parser('get', help='Get search results')
+    search_get = search_sub.add_parser('get', help='Fetch results for a search',
+                                       description='Fetch results for a completed or in-progress search.')
     search_get.add_argument('id', help='Search ID')
-    search_get.add_argument('--page', help='Page ID for pagination')
+    search_get.add_argument('--page', help='Page ID (from find-more results)')
     search_get.set_defaults(func=do_search_get)
 
-    search_find_more = search_sub.add_parser('find-more', help='Find more results for a search')
-    search_find_more.add_argument('id', help='Parent search ID')
+    search_find_more = search_sub.add_parser('find-more', help='Find additional results',
+                                             description='Find additional results for a completed search.')
+    search_find_more.add_argument('id', help='Search ID')
     search_find_more.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
     search_find_more.set_defaults(func=do_search_find_more)
 
     # research
-    research_parser = subparsers.add_parser('research', help='Research a person')
-    research_parser.add_argument('description', nargs='?', help='Name and identifying details (e.g. title, company)')
+    research_parser = subparsers.add_parser(
+        'research', help='Research a person',
+        formatter_class=HelpFormatter,
+        epilog='''Examples:
+  hpn research "Jane Smith, CTO at Acme Corp"
+  hpn research "Bob Jones, partner at Sequoia Capital"''',
+    )
+    research_parser.add_argument('description', nargs='?',
+                                 help="Name and details, e.g. 'Jane Smith, CTO at Acme'")
     research_parser.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
     research_parser.set_defaults(func=lambda args: do_research(args) if args.description else research_parser.print_help())
     research_sub = research_parser.add_subparsers(dest='research_command', title='Commands')
 
-    research_get = research_sub.add_parser('get', help='Get research results')
+    research_get = research_sub.add_parser('get', help='Fetch results for a research request',
+                                           description='Fetch results for a research request.')
     research_get.add_argument('id', help='Research ID')
     research_get.set_defaults(func=do_research_get)
 
     # friends
     friends_parser = subparsers.add_parser(
         'friends',
-        help='List your friends (use their names as @mentions in searches)',
+        help='List your friends (use as @<Full Name> in searches)',
+        description='List friend names. Use as @<Full Name> mentions in search queries.',
     )
     friends_parser.set_defaults(func=do_friends)
 
     # groups
     groups_parser = subparsers.add_parser(
         'groups',
-        help='List your groups (use their names with search --groups)',
+        help='List your groups (names for search --groups)',
+        description='List your groups. Pass group names to `hpn search --groups`.',
+        formatter_class=HelpFormatter,
     )
     groups_parser.set_defaults(func=do_groups)
     groups_sub = groups_parser.add_subparsers(dest='groups_command', title='Commands', metavar='')
 
-    groups_get = groups_sub.add_parser('get', help='Get group details')
-    groups_get.add_argument('id', help='Group ID')
+    groups_get = groups_sub.add_parser('get', help='Show group members')
+    groups_get.add_argument('id', help="Group ID (from `hpn groups` output)")
     groups_get.set_defaults(func=do_groups_get)
 
     # usage
-    usage_parser = subparsers.add_parser('usage', help='View credit balance and history')
+    usage_parser = subparsers.add_parser(
+        'usage', help='View credit balance and history',
+        description='Show your credit balance and usage history.',
+    )
     usage_parser.set_defaults(func=do_usage)
 
     args = parser.parse_args()
