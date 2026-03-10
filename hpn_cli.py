@@ -172,8 +172,7 @@ def poll_until_done(client, path, timeout, interval=5):
         status = data.get('status', '')
         if status in ('COMPLETED', 'FAILED', 'FAILED_AMBIGUOUS'):
             return data
-        remaining = max(0, int(deadline - time.time()))
-        print(f"Status: {status} — polling again in {interval}s ({remaining}s remaining)...", file=sys.stderr)
+        print(f"Status: {status} — polling again in {interval}s...", file=sys.stderr)
         time.sleep(interval)
     print(f"Timed out after {timeout}s. Something may have gone wrong, "
           "but you can keep polling this ID.", file=sys.stderr)
@@ -241,7 +240,7 @@ def do_research(args):
 
     research_id = data['id']
     print(f"Research started: {research_id}", file=sys.stderr)
-    result = poll_until_done(client, f'/v1/research/{research_id}', timeout=RESEARCH_TIMEOUT)
+    result = poll_until_done(client, f'/v1/research/{research_id}', timeout=RESEARCH_TIMEOUT, interval=10)
     output(result)
 
 
@@ -303,9 +302,14 @@ description copied from a website (stray formatting is fine).
 
 @mentions: Use @<Full Name> in queries to restrict results to a
 specific person's connections or exclude them. Run `hpn friends`
-to see names available for @mentions.''',
+to see names available for @mentions.
+
+Subcommands:
+  hpn search get ID              Fetch results for a search
+  hpn search get ID --page PID   Fetch a specific page of results
+  hpn search find-more ID        Find additional results for a search''',
     )
-    search_parser.add_argument('query', nargs='?', help='Search query text')
+    search_parser.add_argument('query', help='Search query text')
     search_parser.add_argument('--groups', nargs='+',
                                help='Group names to search (run `hpn groups` to list)')
     search_parser.add_argument('--friends', action='store_true',
@@ -313,20 +317,7 @@ to see names available for @mentions.''',
     search_parser.add_argument('--my-connections', action='store_true',
                                help='Search your own connections')
     search_parser.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
-    search_parser.set_defaults(func=lambda args: do_search(args) if args.query else search_parser.print_help())
-    search_sub = search_parser.add_subparsers(dest='search_command', title='Commands')
-
-    search_get = search_sub.add_parser('get', help='Fetch results for a search',
-                                       description='Fetch results for a completed or in-progress search.')
-    search_get.add_argument('id', help='Search ID')
-    search_get.add_argument('--page', help='Page ID (from find-more results)')
-    search_get.set_defaults(func=do_search_get)
-
-    search_find_more = search_sub.add_parser('find-more', help='Find additional results',
-                                             description='Find additional results for a completed search.')
-    search_find_more.add_argument('id', help='Search ID')
-    search_find_more.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
-    search_find_more.set_defaults(func=do_search_find_more)
+    search_parser.set_defaults(func=do_search)
 
     # research
     research_parser = subparsers.add_parser(
@@ -341,18 +332,15 @@ to see names available for @mentions.''',
 The description is freeform: a name with title/company, a LinkedIn
 URL, a social media handle, or any identifying details. Include
 enough detail to uniquely identify the person (e.g. "Jane Smith"
-alone is too ambiguous, but "Jane Smith, CTO at Acme" is not).''',
+alone is too ambiguous, but "Jane Smith, CTO at Acme" is not).
+
+Subcommands:
+  hpn research get ID            Fetch results for a research request''',
     )
-    research_parser.add_argument('description', nargs='?',
+    research_parser.add_argument('description',
                                  help='Any identifying info: name, title, LinkedIn URL, handle, etc.')
     research_parser.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
-    research_parser.set_defaults(func=lambda args: do_research(args) if args.description else research_parser.print_help())
-    research_sub = research_parser.add_subparsers(dest='research_command', title='Commands')
-
-    research_get = research_sub.add_parser('get', help='Fetch results for a research request',
-                                           description='Fetch results for a research request.')
-    research_get.add_argument('id', help='Research ID')
-    research_get.set_defaults(func=do_research_get)
+    research_parser.set_defaults(func=do_research)
 
     # friends
     friends_parser = subparsers.add_parser(
@@ -383,11 +371,54 @@ alone is too ambiguous, but "Jane Smith, CTO at Acme" is not).''',
     )
     usage_parser.set_defaults(func=do_usage)
 
+    # Pre-dispatch subcommands (e.g. "search get ID", "research get ID") before
+    # argparse, since a required positional + subparsers conflict in argparse.
+    if len(sys.argv) >= 3:
+        cmd, subcmd = sys.argv[1], sys.argv[2]
+        if cmd == 'search' and subcmd in ('get', 'find-more'):
+            return _dispatch_search_subcmd(subcmd, sys.argv[3:])
+        if cmd == 'research' and subcmd == 'get':
+            return _dispatch_research_get(sys.argv[3:])
+
+    # Show help for bare subcommand calls (e.g. "hpn search", "hpn research")
+    # since their required positional would otherwise produce an unhelpful error.
+    if len(sys.argv) == 2 and sys.argv[1] in ('search', 'research'):
+        sys.argv.append('--help')
+
     args = parser.parse_args()
     if hasattr(args, 'func'):
         args.func(args)
     else:
         parser.print_help()
+
+
+def _subcmd_parser(prog, description):
+    """Create a parser for a pre-dispatched subcommand."""
+    parser = argparse.ArgumentParser(prog=prog, description=description)
+    parser.add_argument('--api-key', help='API key (overrides config/env)')
+    return parser
+
+
+def _dispatch_search_subcmd(subcmd, argv):
+    if subcmd == 'get':
+        p = _subcmd_parser('hpn search get', 'Fetch results for a completed or in-progress search.')
+        p.add_argument('id', help='Search ID')
+        p.add_argument('--page', help='Page ID (from find-more results)')
+        args = p.parse_args(argv)
+        do_search_get(args)
+    elif subcmd == 'find-more':
+        p = _subcmd_parser('hpn search find-more', 'Find additional results for a completed search.')
+        p.add_argument('id', help='Search ID')
+        p.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
+        args = p.parse_args(argv)
+        do_search_find_more(args)
+
+
+def _dispatch_research_get(argv):
+    p = _subcmd_parser('hpn research get', 'Fetch results for a research request.')
+    p.add_argument('id', help='Research ID')
+    args = p.parse_args(argv)
+    do_research_get(args)
 
 
 if __name__ == '__main__':
