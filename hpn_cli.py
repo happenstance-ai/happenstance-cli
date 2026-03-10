@@ -15,9 +15,11 @@ class HelpFormatter(argparse.RawDescriptionHelpFormatter):
     def _format_action(self, action):
         result = super()._format_action(action)
         if isinstance(action, argparse._SubParsersAction):
-            # Remove blank lines caused by empty metavar
             lines = result.split('\n')
-            result = '\n'.join(line for line in lines if line.strip()) + '\n'
+            result = '\n'.join(
+                line for line in lines
+                if line.strip() and not (line.strip().startswith('{') and line.strip().endswith('}'))
+            ) + '\n'
         return result
 
 
@@ -251,7 +253,7 @@ def main():
         description='Happenstance CLI',
         formatter_class=HelpFormatter,
         epilog='''Examples:
-  hpn config set --api-key sk-...
+  hpn config set --api-key YOUR_API_KEY
   hpn search "CISOs interested in AI"
   hpn research "John Smith, CTO at Acme Corp"
   hpn friends
@@ -285,18 +287,23 @@ def main():
         epilog='''Scope:
   By default, searches your connections, friends' connections, and all
   groups. If you specify --groups, --friends, or --my-connections, only
-  those sources are searched.
+  those sources are searched. You can combine multiple scope flags.
 
 Examples:
-  hpn search "CISOs interested in AI"
+  hpn search "CISOs interested in AI in the SF Bay Area"
+  hpn search "ML engineers who rock climb"
+  hpn search "VCs who would invest in a dev tools startup"
   hpn search "engineers" --groups "My Group"
-  hpn search "VCs in SF" --friends --my-connections
+  hpn search "product designers" --friends --my-connections
   hpn search "engineers @<Jane Smith> knows"
   hpn search "VCs but not anyone @<Bob Jones> knows"
 
-@mentions: Use @<Name> in queries to restrict results to a specific
-person's connections or to exclude them. Use "hpn friends" to see
-names available for @mentions.''',
+The query is freeform. You can, for example, paste in a raw job
+description copied from a website (stray formatting is fine).
+
+@mentions: Use @<Full Name> in queries to restrict results to a
+specific person's connections or exclude them. Run `hpn friends`
+to see names available for @mentions.''',
     )
     search_parser.add_argument('query', nargs='?', help='Search query text')
     search_parser.add_argument('--groups', nargs='+',
@@ -327,10 +334,17 @@ names available for @mentions.''',
         formatter_class=HelpFormatter,
         epilog='''Examples:
   hpn research "Jane Smith, CTO at Acme Corp"
-  hpn research "Bob Jones, partner at Sequoia Capital"''',
+  hpn research "the CEO of Polymath Robotics"
+  hpn research "https://www.linkedin.com/in/janesmith"
+  hpn research "@janesmith on Instagram"
+
+The description is freeform: a name with title/company, a LinkedIn
+URL, a social media handle, or any identifying details. Include
+enough detail to uniquely identify the person (e.g. "Jane Smith"
+alone is too ambiguous, but "Jane Smith, CTO at Acme" is not).''',
     )
     research_parser.add_argument('description', nargs='?',
-                                 help="Name and details, e.g. 'Jane Smith, CTO at Acme'")
+                                 help='Any identifying info: name, title, LinkedIn URL, handle, etc.')
     research_parser.add_argument('--no-wait', action='store_true', help="Don't wait for completion")
     research_parser.set_defaults(func=lambda args: do_research(args) if args.description else research_parser.print_help())
     research_sub = research_parser.add_subparsers(dest='research_command', title='Commands')
