@@ -5,7 +5,9 @@
 import argparse
 import json
 import os
+import random
 import sys
+import tempfile
 import time
 
 import requests
@@ -66,9 +68,11 @@ def do_config_set(args):
     config = load_config()
     config['api_key'] = args.config_api_key
     config.pop('base_url', None)
-    with open(CONFIG_FILE, 'w') as f:
+    fd, tmp_path = tempfile.mkstemp(dir=CONFIG_DIR, suffix='.tmp')
+    with os.fdopen(fd, 'w') as f:
         json.dump(config, f, indent=2)
-    os.chmod(CONFIG_FILE, 0o600)
+    os.chmod(tmp_path, 0o600)
+    os.rename(tmp_path, CONFIG_FILE)
     output({"status": "ok", "config_file": CONFIG_FILE})
 
 
@@ -97,16 +101,45 @@ class HpnClient:
         return self._request('POST', path, json=json_data)
 
     def _request(self, method, path, **kwargs):
-        resp = self.session.request(method, f'{self.base_url}{path}', **kwargs)
-        if resp.status_code >= 400:
-            # RFC 7807 Problem Details
+        attempt = 0
+        while True:
+            resp = self.session.request(method, f'{self.base_url}{path}', **kwargs)
+            if resp.status_code < 400:
+                return resp.json()
+
+            retry = self._should_retry(resp.status_code, attempt)
+            if not retry:
+                try:
+                    error = resp.json()
+                except Exception:
+                    error = {"status": resp.status_code, "detail": resp.text}
+                print(json.dumps(error, indent=2), file=sys.stderr)
+                sys.exit(1)
+
+            delay = self._retry_delay(resp, attempt)
+            print(f"HTTP {resp.status_code} — retrying in {delay:.0f}s (attempt {attempt + 1})...",
+                  file=sys.stderr)
+            time.sleep(delay)
+            attempt += 1
+
+    @staticmethod
+    def _should_retry(status_code, attempt):
+        if status_code == 429:
+            return True  # always retry rate limits
+        if status_code in (502, 503, 504):
+            return attempt < 5
+        return False
+
+    @staticmethod
+    def _retry_delay(resp, attempt):
+        retry_after = resp.headers.get('Retry-After')
+        if retry_after:
             try:
-                error = resp.json()
-            except Exception:
-                error = {"status": resp.status_code, "detail": resp.text}
-            output(error)
-            sys.exit(1)
-        return resp.json()
+                return max(0, float(retry_after)) + random.random()
+            except ValueError:
+                pass
+        backoff = min(2 ** attempt, 32)
+        return backoff + random.random()
 
 
 def require_client(args):
@@ -123,6 +156,13 @@ def require_client(args):
 
 def output(data):
     print(json.dumps(data, indent=2))
+
+
+def output_poll_result(data):
+    """Output polled result and exit non-zero if not COMPLETED."""
+    output(data)
+    if data.get('status') != 'COMPLETED':
+        sys.exit(1)
 
 
 def simple_get(path_template):
@@ -202,7 +242,7 @@ def do_search(args):
     search_id = data['id']
     print(f"Search started: {search_id}", file=sys.stderr)
     result = poll_until_done(client, f'/v1/search/{search_id}', timeout=SEARCH_TIMEOUT)
-    output(result)
+    output_poll_result(result)
 
 
 def do_search_get(args):
@@ -225,7 +265,7 @@ def do_search_find_more(args):
     parent_id = data['parent_search_id']
     print(f"Find-more started: {page_id}", file=sys.stderr)
     result = poll_until_done(client, f'/v1/search/{parent_id}?page_id={page_id}', timeout=SEARCH_TIMEOUT)
-    output(result)
+    output_poll_result(result)
 
 
 # ── research ──────────────────────────────────────────────────────────────────
@@ -241,7 +281,7 @@ def do_research(args):
     research_id = data['id']
     print(f"Research started: {research_id}", file=sys.stderr)
     result = poll_until_done(client, f'/v1/research/{research_id}', timeout=RESEARCH_TIMEOUT, interval=10)
-    output(result)
+    output_poll_result(result)
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -422,4 +462,10 @@ def _dispatch_research_get(argv):
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except BrokenPipeError:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(1)
