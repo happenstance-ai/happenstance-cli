@@ -18,7 +18,9 @@ class HelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     def _format_action(self, action):
         result = super()._format_action(action)
-        if isinstance(action, argparse._SubParsersAction):
+        if isinstance(
+            action, argparse._SubParsersAction
+        ):  # private API, stable across 3.11–3.13
             lines = result.split("\n")
             result = (
                 "\n".join(
@@ -71,9 +73,11 @@ def resolve_config(args):
 
 
 def do_config_set(args):
-    if not args.config_api_key:
+    api_key = args.config_api_key or getattr(args, "api_key", None)
+    if not api_key:
         print("Nothing to set. Use --api-key.", file=sys.stderr)
         sys.exit(1)
+    args.config_api_key = api_key
     os.makedirs(CONFIG_DIR, exist_ok=True)
     config = load_config()
     config["api_key"] = args.config_api_key
@@ -111,9 +115,11 @@ class HpnClient:
     def post(self, path, json_data=None):
         return self._request("POST", path, json=json_data)
 
+    MAX_RETRIES = 10  # safety net — _should_retry also caps per status code
+
     def _request(self, method, path, **kwargs):
         attempt = 0
-        while True:
+        while attempt <= self.MAX_RETRIES:
             resp = self.session.request(method, f"{self.base_url}{path}", **kwargs)
             if resp.status_code < 400:
                 return resp.json()
@@ -129,10 +135,14 @@ class HpnClient:
             )
             time.sleep(delay)
             attempt += 1
+        self._handle_error(resp)  # retries exhausted
 
     @staticmethod
     def _handle_error(resp):
-        """Print a user-friendly error and exit."""
+        """Print a user-friendly error and exit.
+
+        For 429: reached after _should_retry exhausts its 10-attempt cap.
+        """
         if resp.status_code == 402:
             print(
                 "Insufficient credits. Purchase more at https://happenstance.ai/api/keys",

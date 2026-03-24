@@ -309,6 +309,25 @@ class TestSearchGet:
         assert data["status"] == "COMPLETED"
 
     @responses.activate
+    def test_get_search_with_api_key_space_form(self, tmp_config_dir):
+        """--api-key KEY (space-separated) before subcommand should be forwarded."""
+        search_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        responses.add(
+            responses.GET,
+            f"{BASE_URL}/v1/search/{search_id}",
+            json=mock_search_response(search_id),
+            status=200,
+        )
+
+        code, out, err = run_cli(
+            "--api-key", "test-api-key-1234567890", "search", "get", search_id
+        )
+        assert code == 0
+        data = json.loads(out)
+        assert data["status"] == "COMPLETED"
+
+    @responses.activate
     def test_get_search_with_page(self, tmp_config_dir):
         create_config_file(tmp_config_dir)
         search_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -618,6 +637,7 @@ class TestErrors:
 
         code, out, err = run_cli("search", "test query")
         assert code == 1
+        assert "Timed out after" in err
 
     @responses.activate
     def test_search_failed_status(self, tmp_config_dir, monkeypatch):

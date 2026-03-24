@@ -28,11 +28,9 @@ def run_cli(*args):
     return exit_code, captured_out.getvalue(), captured_err.getvalue()
 
 
-def create_config_file(config_dir, api_key="test-api-key-1234567890", base_url=None):
+def create_config_file(config_dir, api_key="test-api-key-1234567890"):
     """Write a test config file to the given directory."""
     config = {"api_key": api_key}
-    if base_url:
-        config["base_url"] = base_url
     config_file = os.path.join(config_dir, "config.json")
     os.makedirs(config_dir, exist_ok=True)
     with open(config_file, "w") as f:

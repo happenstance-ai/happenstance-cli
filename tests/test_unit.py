@@ -5,6 +5,8 @@ import os
 import time
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 from hpn_cli import __version__
 from hpn_cli.cli import (
@@ -160,6 +162,44 @@ class TestHpnClient:
         resp.headers = {}
         delay = HpnClient._retry_delay(resp, 10)
         assert 32 <= delay <= 33  # min(2^10, 32) = 32
+
+    def test_should_not_retry_500(self):
+        assert HpnClient._should_retry(500, 0) is False
+
+    def test_handle_error_402(self, capsys):
+        resp = MagicMock()
+        resp.status_code = 402
+        with pytest.raises(SystemExit) as exc_info:
+            HpnClient._handle_error(resp)
+        assert exc_info.value.code == 1
+        assert "Insufficient credits" in capsys.readouterr().err
+
+    def test_handle_error_429(self, capsys):
+        resp = MagicMock()
+        resp.status_code = 429
+        with pytest.raises(SystemExit) as exc_info:
+            HpnClient._handle_error(resp)
+        assert exc_info.value.code == 1
+        assert "Too many concurrent requests" in capsys.readouterr().err
+
+    def test_handle_error_generic(self, capsys):
+        resp = MagicMock()
+        resp.status_code = 500
+        resp.json.return_value = {"detail": "Internal Server Error"}
+        with pytest.raises(SystemExit) as exc_info:
+            HpnClient._handle_error(resp)
+        assert exc_info.value.code == 1
+        assert "Internal Server Error" in capsys.readouterr().err
+
+    def test_handle_error_non_json(self, capsys):
+        resp = MagicMock()
+        resp.status_code = 500
+        resp.json.side_effect = ValueError("not json")
+        resp.text = "Bad Gateway"
+        with pytest.raises(SystemExit) as exc_info:
+            HpnClient._handle_error(resp)
+        assert exc_info.value.code == 1
+        assert "Bad Gateway" in capsys.readouterr().err
 
     def test_base_url_strips_trailing_slash(self):
         client = HpnClient("https://example.com/", "key")
