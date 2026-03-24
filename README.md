@@ -1,4 +1,4 @@
-# hpn-cli
+# happenstance-cli
 
 Command-line interface for the [Happenstance](https://happenstance.ai) API — search your network and research individual people.
 
@@ -6,13 +6,13 @@ Command-line interface for the [Happenstance](https://happenstance.ai) API — s
 
 ```bash
 # pip
-pip install hpn-cli
+pip install happenstance-cli
 
 # pipx (recommended for CLI tools)
-pipx install hpn-cli
+pipx install happenstance-cli
 
 # uv
-uv tool install hpn-cli
+uv tool install happenstance-cli
 ```
 
 ## Quick start
