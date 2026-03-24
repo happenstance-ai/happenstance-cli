@@ -1,4 +1,4 @@
-# happenstance-cli Development
+# happenstance Development
 
 Internal guide for developing and testing the CLI.
 
@@ -81,7 +81,7 @@ To release a new version:
 3. Tag and push: `git tag hpn-cli-v0.1.0 && git push origin hpn-cli-v0.1.0`
 4. The workflow runs tests, builds, and publishes to PyPI via trusted publishing (OIDC)
 
-**First-time setup**: Register `happenstance-cli` on PyPI and configure trusted publishing to accept tokens from this repo's `publish-hpn-cli.yml` workflow with the `pypi` environment.
+**First-time setup**: Register `happenstance` on PyPI and configure trusted publishing to accept tokens from this repo's `publish-hpn-cli.yml` workflow with the `pypi` environment.
 
 ## Monorepo integration
 

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "happenstance-cli"
+name = "happenstance"
 version = "0.1.0"
 description = "Happenstance CLI — search your network and research individual people"
 readme = "README.md"

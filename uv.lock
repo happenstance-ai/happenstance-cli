@@ -214,7 +214,7 @@ toml = [
 ]
 
 [[package]]
-name = "happenstance-cli"
+name = "happenstance"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

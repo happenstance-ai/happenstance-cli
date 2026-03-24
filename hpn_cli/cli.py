@@ -285,13 +285,13 @@ def check_for_updates():
                 if latest and latest != __version__:
                     print(
                         f"Update available: {__version__} → {latest}. "
-                        f"Run `pip install --upgrade happenstance-cli` to update.",
+                        f"Run `pip install --upgrade happenstance` to update.",
                         file=sys.stderr,
                     )
                 return  # cache is fresh, skip network check
 
         # Fetch latest version from PyPI
-        resp = requests.get("https://pypi.org/pypi/happenstance-cli/json", timeout=3)
+        resp = requests.get("https://pypi.org/pypi/happenstance/json", timeout=3)
         if resp.status_code != 200:
             return
         latest = resp.json()["info"]["version"]
@@ -306,7 +306,7 @@ def check_for_updates():
         if latest != __version__:
             print(
                 f"Update available: {__version__} → {latest}. "
-                f"Run `pip install --upgrade happenstance-cli` to update.",
+                f"Run `pip install --upgrade happenstance` to update.",
                 file=sys.stderr,
             )
     except Exception:
