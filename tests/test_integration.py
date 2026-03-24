@@ -290,6 +290,25 @@ class TestSearchGet:
         assert data["status"] == "COMPLETED"
 
     @responses.activate
+    def test_get_search_with_api_key_equals_form(self, tmp_config_dir):
+        """--api-key=VALUE before subcommand should be handled by pre-dispatch."""
+        search_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        responses.add(
+            responses.GET,
+            f"{BASE_URL}/v1/search/{search_id}",
+            json=mock_search_response(search_id),
+            status=200,
+        )
+
+        code, out, err = run_cli(
+            "--api-key=test-api-key-1234567890", "search", "get", search_id
+        )
+        assert code == 0
+        data = json.loads(out)
+        assert data["status"] == "COMPLETED"
+
+    @responses.activate
     def test_get_search_with_page(self, tmp_config_dir):
         create_config_file(tmp_config_dir)
         search_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -304,6 +323,7 @@ class TestSearchGet:
 
         code, out, err = run_cli("search", "get", search_id, "--page", page_id)
         assert code == 0
+        assert f"page_id={page_id}" in responses.calls[0].request.url
 
 
 class TestSearchFindMore:

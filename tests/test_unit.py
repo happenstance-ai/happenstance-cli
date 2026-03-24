@@ -128,7 +128,8 @@ class TestArgParsing:
 class TestHpnClient:
     def test_should_retry_429(self):
         assert HpnClient._should_retry(429, 0) is True
-        assert HpnClient._should_retry(429, 100) is True
+        assert HpnClient._should_retry(429, 9) is True
+        assert HpnClient._should_retry(429, 10) is False
 
     def test_should_retry_5xx(self):
         assert HpnClient._should_retry(502, 0) is True

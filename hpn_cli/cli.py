@@ -155,8 +155,12 @@ class HpnClient:
     @staticmethod
     def _should_retry(status_code, attempt):
         if status_code == 429:
-            return True  # always retry rate limits
-        if status_code in (502, 503, 504):
+            return attempt < 10
+        if status_code in (
+            502,
+            503,
+            504,
+        ):  # gateway errors (transient); 500 is not retried (server bug)
             return attempt < 5
         return False
 
@@ -247,12 +251,12 @@ def resolve_group_ids(client, group_names):
     return resolved
 
 
-def poll_until_done(client, path, timeout, interval=5):
+def poll_until_done(client, path, timeout, interval=5, params=None):
     """Poll a status endpoint until COMPLETED/FAILED/FAILED_AMBIGUOUS or timeout."""
     deadline = time.time() + timeout
     data = None
     while time.time() < deadline:
-        data = client.get(path)
+        data = client.get(path, params=params)
         status = data.get("status", "")
         if status in ("COMPLETED", "FAILED", "FAILED_AMBIGUOUS"):
             return data
@@ -292,10 +296,12 @@ def check_for_updates():
             return
         latest = resp.json()["info"]["version"]
 
-        # Cache the result
+        # Cache the result (atomic write, consistent with do_config_set)
         os.makedirs(CONFIG_DIR, exist_ok=True)
-        with open(UPDATE_CHECK_FILE, "w") as f:
+        fd, tmp_path = tempfile.mkstemp(dir=CONFIG_DIR, suffix=".tmp")
+        with os.fdopen(fd, "w") as f:
             json.dump({"timestamp": time.time(), "latest_version": latest}, f)
+        os.rename(tmp_path, UPDATE_CHECK_FILE)
 
         if latest != __version__:
             print(
@@ -354,7 +360,10 @@ def do_search_find_more(args):
     parent_id = data["parent_search_id"]
     print(f"Find-more started: {page_id}", file=sys.stderr)
     result = poll_until_done(
-        client, f"/v1/search/{parent_id}?page_id={page_id}", timeout=SEARCH_TIMEOUT
+        client,
+        f"/v1/search/{parent_id}",
+        timeout=SEARCH_TIMEOUT,
+        params={"page_id": page_id},
     )
     output_poll_result(result)
 
@@ -437,6 +446,9 @@ def _pop_subcommand(argv):
         arg = argv[i]
         if arg == "--api-key" and i + 1 < len(argv):
             i += 2
+            continue
+        if arg.startswith("--api-key="):
+            i += 1
             continue
         if arg.startswith("-"):
             i += 1
