@@ -92,7 +92,7 @@ def generate_formula(version):
         "class Happenstance < Formula",
         "  include Language::Python::Virtualenv",
         "",
-        '  desc "Search your network and research people via the Happenstance API"',
+        '  desc "Search your network and research people via the Happenstance CLI"',
         '  homepage "https://happenstance.ai"',
         f'  url "{pkg_url}"',
         f'  sha256 "{pkg_sha}"',
