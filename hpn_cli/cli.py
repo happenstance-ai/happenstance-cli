@@ -559,7 +559,7 @@ Examples:
   hpn search "VCs who would invest in a dev tools startup"
   hpn search "engineers" --groups "My Group"
   hpn search "product designers" --friends --my-connections
-  hpn search "engineers @<Jane Smith> knows"
+  hpn search "engineers @<Alex Teichman> knows"
   hpn search get ID              Fetch results for a search
   hpn search get ID --page PID   Fetch a specific page of results
   hpn search find-more ID        Find additional results for a search
@@ -613,8 +613,8 @@ Examples:
 
 The description is freeform: a name with title/company, a LinkedIn
 URL, a social media handle, or any identifying details. Include
-enough detail to uniquely identify the person (e.g. "Jane Smith"
-alone is too ambiguous, but "Jane Smith, CTO at Acme" is not).""",
+enough detail to uniquely identify the person (e.g. "Alex Teichman"
+alone is too ambiguous, but "Alex Teichman, CTO at Acme" is not).""",
     )
     research_parser.add_argument(
         "description",
