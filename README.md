@@ -1,6 +1,6 @@
 # happenstance
 
-Command-line interface for the [Happenstance](https://happenstance.ai) API — search your network and research individual people.
+Command-line interface for [Happenstance](https://happenstance.ai) — search your network with AI. Find warm intros for sales, source referral candidates for hiring, discover investors for fundraising, and research anyone in your network.
 
 ## Install
 

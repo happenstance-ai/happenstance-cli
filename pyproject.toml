@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "happenstance"
 version = "0.1.0"
-description = "Happenstance CLI — search your network and research individual people"
+description = "Happenstance CLI — search your network with AI for sales, hiring, fundraising, and more"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
