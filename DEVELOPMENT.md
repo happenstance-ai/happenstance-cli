@@ -83,6 +83,20 @@ To release a new version:
 
 **First-time setup**: Register `happenstance` on PyPI and configure trusted publishing to accept tokens from this repo's `publish-hpn-cli.yml` workflow with the `pypi` environment.
 
+### Homebrew
+
+After PyPI publish, the workflow automatically generates a Homebrew formula and pushes it to [happenstance-ai/homebrew-tap](https://github.com/happenstance-ai/homebrew-tap).
+
+**First-time setup**:
+1. Create the `happenstance-ai/homebrew-tap` GitHub repo (public, with a `Formula/` directory)
+2. Create a GitHub App with **Contents: Read & write** permission, installed on `happenstance-ai/homebrew-tap`
+3. Add the App ID as `HOMEBREW_APP_ID` and the private key as `HOMEBREW_APP_PRIVATE_KEY` secrets in the happenstance repo
+
+**Formula generation** (local testing):
+```bash
+python hpn_cli/homebrew/generate_formula.py 0.1.0
+```
+
 ## Monorepo integration
 
 `hpn_cli/` is excluded from the root workspace (`[tool.uv.workspace] exclude = ["hpn_cli"]`) so it doesn't interfere with the monorepo's venv. It manages its own `.venv` independently.

@@ -5,6 +5,10 @@ Command-line interface for the [Happenstance](https://happenstance.ai) API — s
 ## Install
 
 ```bash
+# Homebrew (macOS / Linux)
+brew tap happenstance-ai/tap
+brew install happenstance
+
 # pip
 pip install happenstance
 
