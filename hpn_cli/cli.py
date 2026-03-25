@@ -614,7 +614,7 @@ Examples:
 The description is freeform: a name with title/company, a LinkedIn
 URL, a social media handle, or any identifying details. Include
 enough detail to uniquely identify the person (e.g. "Alex Teichman"
-alone is too ambiguous, but "Alex Teichman, CTO at Acme" is not).""",
+alone is too ambiguous, but "Alex Teichman, CEO at Happenstance" is not).""",
     )
     research_parser.add_argument(
         "description",
