@@ -36,6 +36,17 @@ def sdist_info(pypi_data):
     raise LookupError(f"No sdist found for {name}=={version}")
 
 
+def wheel_info(pypi_data):
+    """Return (url, sha256) for the universal wheel, falling back to sdist."""
+    for f in pypi_data["urls"]:
+        if f["packagetype"] == "bdist_wheel" and f["filename"].endswith(
+            "-py3-none-any.whl"
+        ):
+            return f["url"], f["digests"]["sha256"]
+    # No universal wheel available — fall back to sdist
+    return sdist_info(pypi_data)
+
+
 def parse_deps(pypi_data):
     """Return list of required dependency names (excluding extras)."""
     requires = pypi_data["info"].get("requires_dist") or []
@@ -73,7 +84,7 @@ def collect_deps(root_package, root_version):
         visited.add(key)
 
         data = pypi_json(raw_name)
-        url, sha = sdist_info(data)
+        url, sha = wheel_info(data)
         display_name = data["info"]["name"]
         result.append((display_name, url, sha))
         queue.extend(parse_deps(data))
