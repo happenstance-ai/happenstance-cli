@@ -128,6 +128,10 @@ class TestArgParsing:
 
 
 class TestHpnClient:
+    def test_user_agent_header(self):
+        client = HpnClient("https://example.com", "test-key")
+        assert client.session.headers["User-Agent"] == f"happenstance-cli/{__version__}"
+
     def test_should_retry_429(self):
         assert HpnClient._should_retry(429, 0) is True
         assert HpnClient._should_retry(429, 9) is True

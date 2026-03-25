@@ -107,6 +107,7 @@ class HpnClient:
         self.session = requests.Session()
         self.session.headers["Authorization"] = f"Bearer {api_key}"
         self.session.headers["Content-Type"] = "application/json"
+        self.session.headers["User-Agent"] = f"happenstance-cli/{__version__}"
         self.base_url = base_url.rstrip("/")
 
     def get(self, path, params=None):
