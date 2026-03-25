@@ -546,7 +546,7 @@ def main():
   those sources are searched. You can combine multiple scope flags.
 
 Credits:
-  Each search costs credits. Run `hpn usage` to check your balance.
+  Each search costs 2 credits. Run `hpn usage` to check your balance.
   Returns exit code 1 if the search fails or times out.
 
 Errors:
