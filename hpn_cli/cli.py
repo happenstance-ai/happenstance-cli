@@ -498,7 +498,7 @@ def main():
         epilog="""Examples:
   hpn config set --api-key YOUR_API_KEY
   hpn search "CISOs interested in AI"
-  hpn research "John Smith, CTO at Acme Corp"
+  hpn research "https://www.linkedin.com/in/garrytan/"
   hpn friends
   hpn groups
   hpn usage""",
@@ -560,7 +560,6 @@ Examples:
   hpn search "engineers" --groups "My Group"
   hpn search "product designers" --friends --my-connections
   hpn search "engineers @<Jane Smith> knows"
-  hpn search "VCs but not anyone @<Bob Jones> knows"
   hpn search get ID              Fetch results for a search
   hpn search get ID --page PID   Fetch a specific page of results
   hpn search find-more ID        Find additional results for a search
@@ -602,14 +601,14 @@ to see names available for @mentions.""",
 Tips:
   Include as many details as possible for best results:
   - "Garry Tan, CEO of Y Combinator, @garrytan on Twitter"
-  - "https://www.linkedin.com/in/janesmith"
+  - "https://www.linkedin.com/in/garrytan/"
   A name alone is often too ambiguous.
 
 Examples:
-  hpn research "Jane Smith, CTO at Acme Corp"
-  hpn research "the CEO of Polymath Robotics"
-  hpn research "https://www.linkedin.com/in/janesmith"
-  hpn research "@janesmith on Instagram"
+  hpn research "https://www.linkedin.com/in/garrytan/"
+  hpn research "the CEO of Happenstance"
+  hpn research "@mkbhd on Instagram"
+  hpn research "Garry Tan, CEO of Y Combinator"
   hpn research get 11111111-2222-3333-4444-555555555555
 
 The description is freeform: a name with title/company, a LinkedIn

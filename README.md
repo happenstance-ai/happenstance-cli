@@ -29,7 +29,7 @@ hpn config set --api-key YOUR_API_KEY
 hpn search "CISOs interested in AI in the SF Bay Area"
 
 # Research a specific person
-hpn research "Jane Smith, CTO at Acme Corp"
+hpn research "https://www.linkedin.com/in/garrytan/"
 
 # Check your credit balance
 hpn usage
