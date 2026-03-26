@@ -37,6 +37,7 @@ packages = ["hpn_cli"]
 
 [project.scripts]
 hpn = "hpn_cli.cli:main"
+happenstance = "hpn_cli.cli:main"
 
 [dependency-groups]
 dev = [
