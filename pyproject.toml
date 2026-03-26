@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "happenstance"
-version = "0.1.0"
-description = "Happenstance CLI — search your network and research individual people"
+version = "0.2.0"
+description = "Happenstance CLI — search your network with AI for sales, hiring, fundraising, and more"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -37,6 +37,7 @@ packages = ["hpn_cli"]
 
 [project.scripts]
 hpn = "hpn_cli.cli:main"
+happenstance = "hpn_cli.cli:main"
 
 [dependency-groups]
 dev = [

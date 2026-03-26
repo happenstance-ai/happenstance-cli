@@ -1,10 +1,14 @@
 # happenstance
 
-Command-line interface for the [Happenstance](https://happenstance.ai) API — search your network and research individual people.
+Command-line interface for [Happenstance](https://happenstance.ai) — search your network with AI. Find warm intros for sales, source referral candidates for hiring, discover investors for fundraising, and research anyone in your network.
 
 ## Install
 
 ```bash
+# Homebrew (macOS / Linux)
+brew tap happenstance-ai/tap
+brew install happenstance
+
 # pip
 pip install happenstance
 
@@ -25,7 +29,7 @@ hpn config set --api-key YOUR_API_KEY
 hpn search "CISOs interested in AI in the SF Bay Area"
 
 # Research a specific person
-hpn research "Jane Smith, CTO at Acme Corp"
+hpn research "https://www.linkedin.com/in/garrytan/"
 
 # Check your credit balance
 hpn usage
