@@ -284,9 +284,27 @@ def poll_until_done(client, path, timeout, interval=5, params=None):
 # ── update check ──────────────────────────────────────────────────────────────
 
 
+def _is_homebrew_install():
+    """Return True if the CLI was installed via Homebrew."""
+    try:
+        exe = os.path.realpath(sys.executable)
+        return "/Cellar/" in exe or "/homebrew/" in exe.lower()
+    except Exception:
+        return False
+
+
+def _upgrade_command():
+    """Return the appropriate upgrade command based on install method."""
+    if _is_homebrew_install():
+        return "brew upgrade happenstance"
+    return "pip install --upgrade happenstance"
+
+
 def check_for_updates():
     """Check PyPI for a newer version, at most once per day. Non-blocking."""
     try:
+        upgrade_cmd = _upgrade_command()
+
         # Check if we should skip (cached recently)
         if os.path.exists(UPDATE_CHECK_FILE):
             with open(UPDATE_CHECK_FILE) as f:
@@ -296,7 +314,7 @@ def check_for_updates():
                 if latest and latest != __version__:
                     print(
                         f"Update available: {__version__} → {latest}. "
-                        f"Run `pip install --upgrade happenstance` to update.",
+                        f"Run `{upgrade_cmd}` to update.",
                         file=sys.stderr,
                     )
                 return  # cache is fresh, skip network check
@@ -317,7 +335,7 @@ def check_for_updates():
         if latest != __version__:
             print(
                 f"Update available: {__version__} → {latest}. "
-                f"Run `pip install --upgrade happenstance` to update.",
+                f"Run `{upgrade_cmd}` to update.",
                 file=sys.stderr,
             )
     except Exception:
