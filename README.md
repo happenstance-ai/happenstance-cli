@@ -22,7 +22,7 @@ pip install happenstance
 ## Quick start
 
 ```bash
-# Configure your API key (get one at https://happenstance.ai/api/keys)
+# Configure your API key (get one at https://happenstance.ai/integrations/keys)
 hpn config set --api-key YOUR_API_KEY
 
 # Search your network

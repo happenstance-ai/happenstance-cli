@@ -557,7 +557,7 @@ class TestErrors:
         code, out, err = run_cli("search", "--no-wait", "query")
         assert code == 1
         assert "Insufficient credits" in err
-        assert "happenstance.ai/api/keys" in err
+        assert "happenstance.ai/integrations/keys" in err
 
     @responses.activate
     def test_429_rate_limit(self, tmp_config_dir, monkeypatch):

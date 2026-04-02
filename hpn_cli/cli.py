@@ -146,7 +146,7 @@ class HpnClient:
         """
         if resp.status_code == 402:
             print(
-                "Insufficient credits. Purchase more at https://happenstance.ai/api/keys",
+                "Insufficient credits. Purchase more at https://happenstance.ai/integrations/keys",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -568,7 +568,7 @@ Credits:
   Returns exit code 1 if the search fails or times out.
 
 Errors:
-  402  Insufficient credits — purchase more at https://happenstance.ai/api/keys
+  402  Insufficient credits — purchase more at https://happenstance.ai/integrations/keys
   429  Too many concurrent requests (max 10 running searches or researches)
 
 Examples:
