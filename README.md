@@ -9,20 +9,20 @@ Command-line interface for [Happenstance](https://happenstance.ai) — search yo
 brew tap happenstance-ai/tap
 brew install happenstance
 
-# pip
-pip install happenstance
-
-# pipx (recommended for CLI tools)
-pipx install happenstance
-
 # uv
 uv tool install happenstance
+
+# pipx
+pipx install happenstance
+
+# pip
+pip install happenstance
 ```
 
 ## Quick start
 
 ```bash
-# Configure your API key (get one at https://happenstance.ai/settings/api)
+# Configure your API key (get one at https://happenstance.ai/integrations/keys)
 hpn config set --api-key YOUR_API_KEY
 
 # Search your network

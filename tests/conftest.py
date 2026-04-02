@@ -33,4 +33,4 @@ def mock_api():
 @pytest.fixture
 def sample_api_key():
     """A test API key string."""
-    return "hpn_test_key_abcdef1234567890"
+    return "hpn_live_personal_abcdef1234567890"
