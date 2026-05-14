@@ -26,6 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.31.0",
+    "urllib3>=2.7.0",
 ]
 
 [project.urls]
