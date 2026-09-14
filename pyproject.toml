@@ -34,6 +34,13 @@ dependencies = [
 Homepage = "https://happenstance.ai"
 Documentation = "https://developer.happenstance.ai"
 
+[tool.uv]
+# hpn_cli is excluded from the monorepo workspace, but uv still walks up to the
+# root pyproject.toml for [tool.uv] settings when this file has none. Declaring
+# the table here stops root-only settings (e.g. exclude-newer-package pins)
+# from leaking into uv.lock. Keep the same release cooldown as the root.
+exclude-newer = "7 days"
+
 [tool.hatch.build.targets.wheel]
 packages = ["hpn_cli"]
 
