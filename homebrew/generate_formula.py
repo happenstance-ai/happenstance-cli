@@ -4,6 +4,13 @@
 Queries PyPI to resolve the package and all transitive dependencies,
 then outputs a complete Homebrew formula to stdout.
 
+The output mirrors what `brew update-python-resources` produces: source
+distributions for every resource (Homebrew installs with
+--no-binary=:all:), the current Homebrew default Python, and the standard
+`virtualenv_install_with_resources` helper. Bump PYTHON_VERSION when
+Homebrew moves its default Python; `brew audit --strict` flags the formula
+when it falls behind.
+
 Usage:
     python generate_formula.py 0.2.0
     python generate_formula.py 0.2.0 > Formula/happenstance.rb
@@ -13,6 +20,9 @@ import json
 import re
 import sys
 import urllib.request
+
+# Homebrew's current default Python. Must match a python@X.Y formula.
+PYTHON_VERSION = "3.14"
 
 
 def pypi_json(package, version=None):
@@ -34,17 +44,6 @@ def sdist_info(pypi_data):
         if f["packagetype"] == "sdist":
             return f["url"], f["digests"]["sha256"]
     raise LookupError(f"No sdist found for {name}=={version}")
-
-
-def wheel_info(pypi_data):
-    """Return (url, sha256) for the universal wheel, falling back to sdist."""
-    for f in pypi_data["urls"]:
-        if f["packagetype"] == "bdist_wheel" and f["filename"].endswith(
-            "-py3-none-any.whl"
-        ):
-            return f["url"], f["digests"]["sha256"]
-    # No universal wheel available — fall back to sdist
-    return sdist_info(pypi_data)
 
 
 def parse_deps(pypi_data):
@@ -84,7 +83,9 @@ def collect_deps(root_package, root_version):
         visited.add(key)
 
         data = pypi_json(raw_name)
-        url, sha = wheel_info(data)
+        # Homebrew's virtualenv helper installs with --no-binary=:all:, so
+        # every resource must be a source distribution, never a wheel.
+        url, sha = sdist_info(data)
         display_name = data["info"]["name"]
         result.append((display_name, url, sha))
         queue.extend(parse_deps(data))
@@ -109,7 +110,7 @@ def generate_formula(version):
         f'  sha256 "{pkg_sha}"',
         '  license "MIT"',
         "",
-        '  depends_on "python@3.12"',
+        f'  depends_on "python@{PYTHON_VERSION}"',
     ]
 
     for name, url, sha in deps:
@@ -124,17 +125,17 @@ def generate_formula(version):
     lines += [
         "",
         "  def install",
-        '    venv = virtualenv_create(libexec, "python3.12")',
-        "    venv.pip_install resources",
-        '    system Formula["python@3.12"].opt_bin/"python3.12", "-m", "pip",',
-        '           "--python=#{libexec}/bin/python", "install", "--verbose",',
-        '           "--no-deps", "--ignore-installed", "--no-compile", buildpath',
-        '    (bin/"hpn").write_env_script libexec/"bin/hpn", PATH: "#{libexec}/bin:$PATH"',
-        '    (bin/"happenstance").write_env_script libexec/"bin/happenstance", PATH: "#{libexec}/bin:$PATH"',
+        "    virtualenv_install_with_resources",
         "  end",
         "",
         "  test do",
         '    assert_match version.to_s, shell_output("#{bin}/hpn --version")',
+        "",
+        '    output = shell_output("#{bin}/hpn config set --api-key test-key")',
+        '    assert_match \'"status": "ok"\', output',
+        "",
+        '    output = shell_output("#{bin}/hpn config show")',
+        '    assert_match \'"api_key": "***"\', output',
         "  end",
         "end",
         "",  # trailing newline
@@ -149,4 +150,6 @@ if __name__ == "__main__":
         print(f"Example: {sys.argv[0]} 0.2.0", file=sys.stderr)
         sys.exit(1)
 
-    print(generate_formula(sys.argv[1]))
+    # The formula already ends with a newline; print() would add a trailing
+    # blank line, which `brew audit --strict` rejects.
+    sys.stdout.write(generate_formula(sys.argv[1]))
