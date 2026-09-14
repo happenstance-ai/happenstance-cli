@@ -70,7 +70,7 @@ The workflow at `.github/workflows/publish-hpn-cli.yml` handles both CI and publ
 - **Pull requests** touching `hpn_cli/**` → runs tests only (no publish)
 - **Tag push** matching `hpn-cli-v*` → runs tests, then builds and publishes to PyPI
 
-Tests run on Ubuntu with Python 3.12 using `uv sync --group dev` and `pytest`.
+Tests run on Ubuntu across Python 3.11, 3.12, 3.13, and 3.14 (the full `requires-python` range) using `uv sync --group dev` and `pytest`.
 
 ## Publishing
 
