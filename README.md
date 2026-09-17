@@ -1,4 +1,4 @@
-# happenstance
+# Happenstance CLI
 
 Command-line interface for [Happenstance](https://happenstance.ai) — search your network with AI. Find warm intros for sales, source referral candidates for hiring, discover investors for fundraising, and research anyone in your network.
 
@@ -64,3 +64,7 @@ All output is JSON and can be piped to `jq` for processing.
 ## Documentation
 
 Full API docs: https://developer.happenstance.ai
+
+## Development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, tests, and releases.

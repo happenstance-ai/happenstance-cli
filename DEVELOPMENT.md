@@ -1,102 +1,77 @@
-# happenstance Development
+# Happenstance CLI development
 
-Internal guide for developing and testing the CLI.
+This repository contains the `hpn` / `happenstance` CLI, published as the `happenstance` Python package. It calls the Happenstance public API over HTTP and runs independently of the backend repository.
 
 ## Setup
 
-```bash
-cd hpn_cli
-uv sync --group dev
-```
-
-This creates a `.venv` inside `hpn_cli/` with the package installed in editable mode plus test dependencies.
-
-## Running locally
+From the repository root:
 
 ```bash
-# Against local API
-HPN_API_URL=http://localhost:8001 uv run hpn --api-key YOUR_KEY search "engineers"
-
-# Against production
-uv run hpn --api-key YOUR_KEY search "engineers"
-
-# Or configure once and skip the flag
-uv run hpn config set --api-key YOUR_KEY
-HPN_API_URL=http://localhost:8001 uv run hpn search "engineers"
+uv sync --frozen --group dev
+uv run hpn --help
 ```
 
-`HPN_API_URL` defaults to `https://api.happenstance.ai` if not set.
+Python 3.11 or newer is required. Dependencies are `requests` and `urllib3`; command parsing uses the standard-library `argparse` module.
 
 ## Tests
 
 ```bash
-cd hpn_cli
 uv run pytest tests/ -s --cov=hpn_cli --cov-report=term-missing
 ```
 
-All HTTP is mocked with the `responses` library — no API key or running server needed.
+All HTTP is mocked with `responses`. No API key or running backend is needed.
+
+## Running locally
+
+```bash
+# Against a local API
+HPN_API_URL=http://localhost:8001 uv run hpn --api-key YOUR_KEY search "engineers"
+
+# Against the public API
+uv run hpn --api-key YOUR_KEY search "engineers"
+```
+
+`HPN_API_URL` defaults to `https://api.happenstance.ai`. API keys resolve in this order: `--api-key`, `HPN_API_KEY`, then `~/.hpn/config.json`. JSON results go to stdout; progress and errors go to stderr.
 
 ## Project structure
 
-```
-hpn_cli/
-├── pyproject.toml          # Package metadata, hatchling build, `hpn` entry point
-├── README.md               # Public-facing (shown on PyPI)
-├── DEVELOPMENT.md          # This file (internal)
-├── LICENSE                 # MIT
-├── hpn_cli/
-│   ├── __init__.py         # __version__
-│   ├── __main__.py         # python -m hpn_cli
-│   └── cli.py              # All CLI logic
-└── tests/
-    ├── conftest.py          # Shared fixtures
-    ├── test_unit.py         # Pure logic tests
-    ├── test_integration.py  # Full CLI flows with mocked HTTP
-    └── utils.py             # Test helpers
-```
+- `hpn_cli/cli.py`: command parsing, API client, polling, and output handling
+- `hpn_cli/__init__.py`: package version
+- `tests/`: unit and mocked HTTP integration tests
+- `homebrew/generate_formula.py`: generates the Homebrew formula from a published PyPI release
+- `.github/workflows/publish-hpn-cli.yml`: tests and release automation
 
-## How it's built
-
-- Pure Python, only dependency is `requests`
-- Uses `argparse` for CLI parsing (no click/typer — keeps the dependency footprint minimal)
-- Subcommands like `search get` and `research get` are pre-dispatched before argparse because argparse can't mix a required positional with subparsers (same pattern as `git stash`/`git stash pop`)
-- Config stored in `~/.hpn/config.json`, API key resolution: `--api-key` flag > `HPN_API_KEY` env var > config file
-- All output is JSON to stdout, status/errors go to stderr
+Nested commands such as `search get` are dispatched before argparse. Reuse the existing client and polling helpers when adding commands.
 
 ## CI
 
-The workflow at `.github/workflows/publish-hpn-cli.yml` handles both CI and publishing:
+Pull requests, pushes to `main`, and `hpn-cli-v*` tags run tests on Python 3.11, 3.12, 3.13, and 3.14. Publishing runs only for a release tag when the repository variable `CLI_PUBLISH_ENABLED` is `true`.
 
-- **Pull requests** touching `hpn_cli/**` → runs tests only (no publish)
-- **Tag push** matching `hpn-cli-v*` → runs tests, then builds and publishes to PyPI
+## Release migration
 
-Tests run on Ubuntu across Python 3.11, 3.12, 3.13, and 3.14 (the full `requires-python` range) using `uv sync --group dev` and `pytest`.
+Publishing is disabled by default in this new repository. Before enabling it:
+
+1. Configure the existing `happenstance` PyPI project's trusted publisher for owner `happenstance-ai`, repository `happenstance-cli`, workflow `publish-hpn-cli.yml`, and environment `pypi`. Keep the old publisher until the backend removal is ready to merge.
+2. Configure the GitHub `pypi` environment with the existing release policy: allow the `main` branch and `hpn-cli-v*` tags.
+3. Provide `HOMEBREW_APP_ID` and `HOMEBREW_APP_PRIVATE_KEY` to this repository's release jobs. The GitHub App must have Contents read/write access to `happenstance-ai/homebrew-tap`. Secret values do not transfer with Git history.
+4. Verify the new repository's CI and release access, then set the repository variable `CLI_PUBLISH_ENABLED` to `true`.
+5. Coordinate the backend removal PR and retirement of the old PyPI publisher so there is one release source.
+
+Moving this source does not affect existing installations: pip, uv, and Homebrew download already-published artifacts from PyPI. No package name, command name, or API endpoint changes are required.
 
 ## Publishing
 
-To release a new version:
+After the migration is complete:
 
-1. Bump `__version__` in `hpn_cli/__init__.py` and `version` in `pyproject.toml`
-2. Merge to main
-3. Tag and push: `git tag hpn-cli-v0.1.0 && git push origin hpn-cli-v0.1.0`
-4. The workflow runs tests, builds, and publishes to PyPI via trusted publishing (OIDC)
+1. Update `version` in `pyproject.toml` and `__version__` in `hpn_cli/__init__.py`, and refresh `uv.lock` with `uv lock`.
+2. Merge to `main` and confirm CI passes.
+3. Create and push `hpn-cli-v<VERSION>` for the new version. Do not recreate an already-published version.
+4. The workflow checks that the tag matches the package version, builds the package, publishes to PyPI through OIDC, and updates the Homebrew tap.
 
-**First-time setup**: Register `happenstance` on PyPI and configure trusted publishing to accept tokens from this repo's `publish-hpn-cli.yml` workflow with the `pypi` environment.
+To preview a Homebrew formula for an already-published version:
 
-### Homebrew
-
-After PyPI publish, the workflow automatically generates a Homebrew formula and pushes it to [happenstance-ai/homebrew-tap](https://github.com/happenstance-ai/homebrew-tap).
-
-**First-time setup**:
-1. Create the `happenstance-ai/homebrew-tap` GitHub repo (public, with a `Formula/` directory)
-2. Create a GitHub App with **Contents: Read & write** permission, installed on `happenstance-ai/homebrew-tap`
-3. Add the App ID as `HOMEBREW_APP_ID` and the private key as `HOMEBREW_APP_PRIVATE_KEY` secrets in the happenstance repo
-
-**Formula generation** (local testing):
 ```bash
-python hpn_cli/homebrew/generate_formula.py 0.1.0
+python homebrew/generate_formula.py 0.2.3
 ```
 
-## Monorepo integration
-
-`hpn_cli/` is excluded from the root workspace (`[tool.uv.workspace] exclude = ["hpn_cli"]`) so it doesn't interfere with the monorepo's venv. It manages its own `.venv` independently.
+The repository was extracted from the backend's `hpn_cli/` directory with its history. Historical commits predating packaging may still refer to the old monorepo layout.

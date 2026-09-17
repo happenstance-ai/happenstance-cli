@@ -1,0 +1,112 @@
+name: Publish hpn-cli
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'hpn-cli-v*'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --frozen --group dev
+      - run: uv run --frozen pytest tests/ -s --cov=hpn_cli --cov-report=term-missing
+
+  publish:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/hpn-cli-v') && vars.CLI_PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # OIDC for PyPI trusted publishing
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
+          PKG_VERSION=$(grep '^version' pyproject.toml | cut -d'"' -f2)
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $PKG_VERSION"
+            exit 1
+          fi
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+
+  homebrew:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Wait for PyPI to index the new version
+        run: |
+          VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
+          for i in $(seq 1 30); do
+            if curl -sf "https://pypi.org/pypi/happenstance/$VERSION/json" > /dev/null 2>&1; then
+              echo "Package happenstance==$VERSION is available on PyPI"
+              exit 0
+            fi
+            echo "Waiting for PyPI to index... ($i/30)"
+            sleep 10
+          done
+          echo "::error::happenstance==$VERSION not found on PyPI after 5 minutes"
+          exit 1
+      - name: Generate Homebrew formula
+        run: |
+          VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
+          python homebrew/generate_formula.py "$VERSION" | tee /tmp/happenstance.rb
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.HOMEBREW_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
+          owner: happenstance-ai
+          repositories: homebrew-tap
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/happenstance-ai/homebrew-tap.git" /tmp/homebrew-tap
+          mkdir -p /tmp/homebrew-tap/Formula
+          cp /tmp/happenstance.rb /tmp/homebrew-tap/Formula/happenstance.rb
+          cd /tmp/homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/happenstance.rb
+          if git diff --staged --quiet; then
+            echo "Formula unchanged — skipping commit"
+          else
+            git commit -m "happenstance $VERSION"
+            git push
+          fi
