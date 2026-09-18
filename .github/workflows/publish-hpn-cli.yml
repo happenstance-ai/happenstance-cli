@@ -40,6 +40,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Check release tag points to main
+        if: startsWith(github.ref, 'refs/tags/hpn-cli-v')
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          if [ "$GITHUB_SHA" != "$(git rev-parse origin/main)" ]; then
+            echo "::error::Release tag must point to the current main commit"
+            exit 1
+          fi
       - name: Check version matches tag
         if: startsWith(github.ref, 'refs/tags/hpn-cli-v')
         run: |
