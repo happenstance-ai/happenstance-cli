@@ -29,14 +29,9 @@ jobs:
       - run: uv sync --frozen --group dev
       - run: uv run --frozen pytest tests/ -s --cov=hpn_cli --cov-report=term-missing
 
-  publish:
+  build:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/hpn-cli-v') && vars.CLI_PUBLISH_ENABLED == 'true'
     runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write  # OIDC for PyPI trusted publishing
-      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -45,7 +40,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Check release tag points to main
+        if: startsWith(github.ref, 'refs/tags/hpn-cli-v')
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          if [ "$GITHUB_SHA" != "$(git rev-parse origin/main)" ]; then
+            echo "::error::Release tag must point to the current main commit"
+            exit 1
+          fi
       - name: Check version matches tag
+        if: startsWith(github.ref, 'refs/tags/hpn-cli-v')
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
           PKG_VERSION=$(grep '^version' pyproject.toml | cut -d'"' -f2)
@@ -54,14 +58,32 @@ jobs:
             exit 1
           fi
       - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-dist
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/hpn-cli-v') && vars.CLI_PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # OIDC for PyPI trusted publishing
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-dist
+          path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
 
-  homebrew:
+  formula:
     needs: publish
     runs-on: ubuntu-latest
-    environment: pypi
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -83,7 +105,21 @@ jobs:
       - name: Generate Homebrew formula
         run: |
           VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
-          python homebrew/generate_formula.py "$VERSION" | tee /tmp/happenstance.rb
+          python homebrew/generate_formula.py "$VERSION" > happenstance.rb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula
+          path: happenstance.rb
+          if-no-files-found: error
+
+  homebrew:
+    needs: formula
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: homebrew-formula
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -92,15 +128,17 @@ jobs:
           private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
           owner: happenstance-ai
           repositories: homebrew-tap
+      - uses: actions/checkout@v4
+        with:
+          repository: happenstance-ai/homebrew-tap
+          token: ${{ steps.app-token.outputs.token }}
+          path: homebrew-tap
       - name: Update Homebrew tap
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#hpn-cli-v}"
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/happenstance-ai/homebrew-tap.git" /tmp/homebrew-tap
-          mkdir -p /tmp/homebrew-tap/Formula
-          cp /tmp/happenstance.rb /tmp/homebrew-tap/Formula/happenstance.rb
-          cd /tmp/homebrew-tap
+          mkdir -p homebrew-tap/Formula
+          cp happenstance.rb homebrew-tap/Formula/happenstance.rb
+          cd homebrew-tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Formula/happenstance.rb
