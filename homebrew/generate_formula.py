@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Generate a Homebrew formula for the happenstance CLI.
 
-Queries PyPI to resolve the package and all transitive dependencies,
-then outputs a complete Homebrew formula to stdout.
+Queries PyPI for the package release and reads all dependency versions and
+source archives from uv.lock, then outputs a complete Homebrew formula to
+stdout. Using the lockfile keeps a release reproducible when newer dependency
+versions appear on PyPI.
 
 The output mirrors what `brew update-python-resources` produces: source
 distributions for every resource (Homebrew installs with
@@ -19,10 +21,14 @@ Usage:
 import json
 import re
 import sys
+import tomllib
 import urllib.request
+from collections import deque
+from pathlib import Path
 
 # Homebrew's current default Python. Must match a python@X.Y formula.
 PYTHON_VERSION = "3.14"
+LOCK_PATH = Path(__file__).resolve().parents[1] / "uv.lock"
 
 
 def pypi_json(package, version=None):
@@ -46,49 +52,79 @@ def sdist_info(pypi_data):
     raise LookupError(f"No sdist found for {name}=={version}")
 
 
-def parse_deps(pypi_data):
-    """Return list of required dependency names (excluding extras)."""
-    requires = pypi_data["info"].get("requires_dist") or []
-    names = []
-    for req in requires:
-        # Skip dependencies gated on extras
-        if re.search(r"\bextra\s*==", req):
-            continue
-        # Package name is everything up to the first version/marker char
-        m = re.match(r"^([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)", req)
-        if m:
-            names.append(m.group(1))
-    return names
-
-
 def _normalize(name):
     """PEP 503 normalize."""
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def collect_deps(root_package, root_version):
-    """Resolve all transitive dependencies (excluding root).
+def _select_locked_package(packages_by_name, dependency):
+    """Resolve one uv.lock dependency reference to its package entry."""
+    name = _normalize(dependency["name"])
+    candidates = packages_by_name.get(name, [])
+    version = dependency.get("version")
+    if version:
+        candidates = [pkg for pkg in candidates if pkg["version"] == version]
+    if len(candidates) != 1:
+        detail = f"{dependency['name']}=={version}" if version else dependency["name"]
+        raise LookupError(f"Expected one locked package for {detail}, found {len(candidates)}")
+    return candidates[0]
+
+
+def _validate_dependency_reference(dependency):
+    """Reject lockfile dependency forms the formula generator cannot model."""
+    if "marker" in dependency:
+        raise ValueError(
+            f"Dependency markers require explicit Homebrew handling: {dependency['name']}"
+        )
+    if "extra" in dependency:
+        raise ValueError(
+            f"Dependency extras require explicit Homebrew handling: {dependency['name']}"
+        )
+
+
+def collect_deps(root_package, root_version, lock_path=None):
+    """Read all transitive dependencies from uv.lock (excluding root).
 
     Returns sorted list of (display_name, sdist_url, sha256).
     """
+    lock_path = LOCK_PATH if lock_path is None else Path(lock_path)
+    with lock_path.open("rb") as lock_file:
+        lock = tomllib.load(lock_file)
+
+    packages_by_name = {}
+    for package in lock["package"]:
+        packages_by_name.setdefault(_normalize(package["name"]), []).append(package)
+
+    root = _select_locked_package(
+        packages_by_name,
+        {"name": root_package, "version": root_version},
+    )
     visited = set()
     result = []
-    queue = parse_deps(pypi_json(root_package, root_version))
+    queue = deque(root.get("dependencies", []))
 
     while queue:
-        raw_name = queue.pop(0)
-        key = _normalize(raw_name)
+        dependency = queue.popleft()
+        _validate_dependency_reference(dependency)
+        package = _select_locked_package(packages_by_name, dependency)
+        key = _normalize(package["name"])
         if key in visited:
             continue
         visited.add(key)
 
-        data = pypi_json(raw_name)
-        # Homebrew's virtualenv helper installs with --no-binary=:all:, so
-        # every resource must be a source distribution, never a wheel.
-        url, sha = sdist_info(data)
-        display_name = data["info"]["name"]
-        result.append((display_name, url, sha))
-        queue.extend(parse_deps(data))
+        sdist = package.get("sdist")
+        if not sdist:
+            raise LookupError(
+                f"No locked sdist found for {package['name']}=={package['version']}"
+            )
+        hash_algorithm, sha = sdist["hash"].split(":", 1)
+        if hash_algorithm != "sha256":
+            raise ValueError(
+                f"Unsupported hash for {package['name']}=={package['version']}: "
+                f"{hash_algorithm}"
+            )
+        result.append((package["name"], sdist["url"], sha))
+        queue.extend(package.get("dependencies", []))
 
     result.sort(key=lambda t: t[0].lower())
     return result
