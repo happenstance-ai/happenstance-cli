@@ -23,6 +23,7 @@ import re
 import sys
 import tomllib
 import urllib.request
+from collections import deque
 from pathlib import Path
 
 # Homebrew's current default Python. Must match a python@X.Y formula.
@@ -69,6 +70,18 @@ def _select_locked_package(packages_by_name, dependency):
     return candidates[0]
 
 
+def _validate_dependency_reference(dependency):
+    """Reject lockfile dependency forms the formula generator cannot model."""
+    if "marker" in dependency:
+        raise ValueError(
+            f"Dependency markers require explicit Homebrew handling: {dependency['name']}"
+        )
+    if "extra" in dependency:
+        raise ValueError(
+            f"Dependency extras require explicit Homebrew handling: {dependency['name']}"
+        )
+
+
 def collect_deps(root_package, root_version, lock_path=None):
     """Read all transitive dependencies from uv.lock (excluding root).
 
@@ -88,10 +101,11 @@ def collect_deps(root_package, root_version, lock_path=None):
     )
     visited = set()
     result = []
-    queue = list(root.get("dependencies", []))
+    queue = deque(root.get("dependencies", []))
 
     while queue:
-        dependency = queue.pop(0)
+        dependency = queue.popleft()
+        _validate_dependency_reference(dependency)
         package = _select_locked_package(packages_by_name, dependency)
         key = _normalize(package["name"])
         if key in visited:
