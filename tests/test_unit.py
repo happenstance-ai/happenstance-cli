@@ -3,6 +3,8 @@
 import json
 import os
 import time
+import tomllib
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -87,6 +89,11 @@ class TestResolveConfig:
 
 
 class TestArgParsing:
+    def test_package_version_matches_cli_version(self):
+        pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        with pyproject.open("rb") as f:
+            assert tomllib.load(f)["project"]["version"] == __version__
+
     def test_version_flag(self, tmp_config_dir):
         code, out, err = run_cli("--version")
         assert __version__ in (out + err)
