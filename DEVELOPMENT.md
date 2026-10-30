@@ -45,28 +45,16 @@ Nested commands such as `search get` are dispatched before argparse. Reuse the e
 
 ## CI
 
-Pull requests, pushes to `main`, and `hpn-cli-v*` tags run tests on Python 3.11, 3.12, 3.13, and 3.14. Publishing runs only for a release tag when the repository variable `CLI_PUBLISH_ENABLED` is `true`.
-
-## Release migration
-
-Publishing is disabled by default in this new repository. Before enabling it:
-
-1. Configure the existing `happenstance` PyPI project's trusted publisher for owner `happenstance-ai`, repository `happenstance-cli`, workflow `publish-hpn-cli.yml`, and environment `pypi`. Keep the old publisher until the backend removal is ready to merge.
-2. Configure the GitHub `pypi` environment with the existing release policy: allow the `main` branch and `hpn-cli-v*` tags.
-3. Provide `HOMEBREW_APP_ID` and `HOMEBREW_APP_PRIVATE_KEY` to this repository's release jobs. The GitHub App must have Contents read/write access to `happenstance-ai/homebrew-tap`. Secret values do not transfer with Git history.
-4. Verify the new repository's CI and release access, then set the repository variable `CLI_PUBLISH_ENABLED` to `true`.
-5. Coordinate the backend removal PR and retirement of the old PyPI publisher so there is one release source.
-
-Moving this source does not affect existing installations: pip, uv, and Homebrew download already-published artifacts from PyPI. No package name, command name, or API endpoint changes are required.
+Pull requests, pushes to `main`, and `hpn-cli-v*` tags run tests on Python 3.11, 3.12, 3.13, and 3.14. A pull request into `main` needs one approving review and all four test checks to merge.
 
 ## Publishing
 
-After the migration is complete:
+A release is an ordinary pull request:
 
 1. Update `version` in `pyproject.toml` and `__version__` in `hpn_cli/__init__.py`, and refresh `uv.lock` with `uv lock`.
-2. Merge to `main` and confirm CI passes.
-3. Create and push `hpn-cli-v<VERSION>` for the new version. Do not recreate an already-published version.
-4. The workflow checks that the tag matches the package version, builds the package, publishes to PyPI through OIDC, and updates the Homebrew tap.
+2. Open a pull request into `main`, get it reviewed, and merge it.
+3. An org admin creates and pushes `hpn-cli-v<VERSION>` on `main`'s current commit. Do not recreate an already-published version.
+4. The workflow checks that the tag points at `main`'s current commit and matches the package version, builds the package, publishes to PyPI through OIDC, and updates the Homebrew tap. No further approval is needed.
 
 To preview a Homebrew formula for an already-published version:
 
